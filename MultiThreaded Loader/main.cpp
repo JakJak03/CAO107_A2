@@ -142,6 +142,17 @@ bool ChooseSoundFilesToLoad(HWND _hwnd)
 	}
 
 }
+std::vector<HBITMAP> g_vecLoadedImages;
+void ImageLoader(std::wstring imageName)
+{
+	HBITMAP loadedImage = (HBITMAP)LoadImageW(NULL, imageName.c_str(), IMAGE_BITMAP, 200, 200, LR_LOADFROMFILE);
+	bool didLoadFail = loadedImage == NULL;
+	if (didLoadFail)
+	{
+		throw"Oh no...";
+	}
+	g_vecLoadedImages.push_back(loadedImage);
+}
 
 LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lparam)
 {
@@ -185,20 +196,25 @@ LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lpa
 		{
 			if (ChooseImageFilesToLoad(_hwnd))
 			{
-				std::vector<HBITMAP> g_vecLoadedImages;
+				std::vector<std::thread> threadVec;
 				for (int imageFileNameIndex = 0; imageFileNameIndex < g_vecImageFileNames.size(); ++imageFileNameIndex)
 				{
 					std::wstring imageFileName = g_vecImageFileNames[imageFileNameIndex];
-					HBITMAP loadedImage = (HBITMAP)LoadImageW(NULL, imageFileName.c_str(), IMAGE_BITMAP, 300, 300, LR_LOADFROMFILE);
-					g_vecLoadedImages.push_back(loadedImage);
+
+					threadVec.push_back(std::thread(ImageLoader, imageFileName));
 				}
+				for (int threadIndex = 0; threadIndex < threadVec.size(); ++threadIndex)
+				{
+					threadVec[threadIndex].join();
+				}
+
 				for (int imageFileNameIndex = 0; imageFileNameIndex < g_vecImageFileNames.size(); ++imageFileNameIndex)
 				{
 					HBITMAP loadedImage = g_vecLoadedImages[imageFileNameIndex];
 					HDC hdc = GetDC(_hwnd);
 					HBRUSH brush = CreatePatternBrush(loadedImage);
 					RECT rect;
-					SetRect(&rect, 300 * imageFileNameIndex, 0, 300 * imageFileNameIndex + 300, 300);
+					SetRect(&rect, 200 * imageFileNameIndex, 0, 200 * imageFileNameIndex + 200, 200);
 					FillRect(hdc, &rect, brush);
 				}
 			}
