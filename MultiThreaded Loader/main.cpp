@@ -1,8 +1,10 @@
-
 #include <Windows.h>
 #include <vector>
 #include <string>
 #include "resource.h"
+#include <mutex>
+#include <iostream>
+#include <thread>
 
 #define WINDOW_CLASS_NAME L"MultiThreaded Loader Tool"
 const unsigned int _kuiWINDOWWIDTH = 1200;
@@ -183,7 +185,22 @@ LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lpa
 		{
 			if (ChooseImageFilesToLoad(_hwnd))
 			{
-				//Write code here to create multiple threads to load image files in parallel
+				std::vector<HBITMAP> g_vecLoadedImages;
+				for (int imageFileNameIndex = 0; imageFileNameIndex < g_vecImageFileNames.size(); ++imageFileNameIndex)
+				{
+					std::wstring imageFileName = g_vecImageFileNames[imageFileNameIndex];
+					HBITMAP loadedImage = (HBITMAP)LoadImageW(NULL, imageFileName.c_str(), IMAGE_BITMAP, 300, 300, LR_LOADFROMFILE);
+					g_vecLoadedImages.push_back(loadedImage);
+				}
+				for (int imageFileNameIndex = 0; imageFileNameIndex < g_vecImageFileNames.size(); ++imageFileNameIndex)
+				{
+					HBITMAP loadedImage = g_vecLoadedImages[imageFileNameIndex];
+					HDC hdc = GetDC(_hwnd);
+					HBRUSH brush = CreatePatternBrush(loadedImage);
+					RECT rect;
+					SetRect(&rect, 300 * imageFileNameIndex, 0, 300 * imageFileNameIndex + 300, 300);
+					FillRect(hdc, &rect, brush);
+				}
 			}
 			else
 			{
