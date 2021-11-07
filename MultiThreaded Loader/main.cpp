@@ -150,6 +150,7 @@ std::vector<HBITMAP> g_vecLoadedImages;
 std::mutex vectorLock;
 std::chrono::duration<double> elapsed_seconds;
 
+// This is what gets multithreaded - Loads and draws a single image.
 void ImageLoader(HWND _hwnd, std::wstring imageName, int imageFileNameIndex)
 {
 	HBITMAP loadedImage = (HBITMAP)LoadImageW(NULL, imageName.c_str(), IMAGE_BITMAP, sizeOfImage, sizeOfImage, LR_LOADFROMFILE);
@@ -191,6 +192,7 @@ LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lpa
 		_hWindowDC = BeginPaint(_hwnd, &ps);
 		RECT rc;
 		GetClientRect(_hwnd, &rc);
+		// Display the time elapsed onscreen.
 		std::string elapsedString = "This took " + to_string(elapsed_seconds.count()) + " seconds.";
 		DrawTextA(_hWindowDC, elapsedString.c_str(), elapsedString.length(), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 		EndPaint(_hwnd, &ps);
@@ -207,19 +209,28 @@ LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lpa
 		{
 			if (ChooseImageFilesToLoad(_hwnd))
 			{
+				// Custom number of threads per image
+				int threadsPerImage = 3;
 				std::vector<std::thread> threadVec;
 				auto startTime = std::chrono::steady_clock::now();
+				// Call the multithreading the right amount of times
 				for (int imageFileNameIndex = 0; imageFileNameIndex < g_vecImageFileNames.size(); ++imageFileNameIndex)
 				{
 					std::wstring imageFileName = g_vecImageFileNames[imageFileNameIndex];
-					threadVec.push_back(std::thread(ImageLoader, _hwnd, imageFileName, imageFileNameIndex));
+					int tempMax = imageFileNameIndex + threadsPerImage;
+					for (int i = imageFileNameIndex; i < tempMax; i++)
+					{
+						threadVec.push_back(std::thread(ImageLoader, _hwnd, imageFileName, i));
+					}
 				}
+				// Join all the threads to main
 				for (int threadIndex = 0; threadIndex < threadVec.size(); ++threadIndex)
 				{
 					threadVec[threadIndex].join();
 				}
 				auto endTime = std::chrono::steady_clock::now();
 				elapsed_seconds = endTime - startTime;
+				// Clear the text thats onscreen so it can display the new time.
 				InvalidateRect(_hwnd, NULL, false);
 			}
 			else
