@@ -5,6 +5,8 @@
 #include <mutex>
 #include <iostream>
 #include <thread>
+#include <string.h>
+using namespace std;
 
 #define WINDOW_CLASS_NAME L"MultiThreaded Loader Tool"
 const unsigned int _kuiWINDOWWIDTH = 1200;
@@ -145,16 +147,22 @@ bool ChooseSoundFilesToLoad(HWND _hwnd)
 
 int sizeOfImage = 300;
 std::vector<HBITMAP> g_vecLoadedImages;
+std::mutex vectorLock;
+std::chrono::duration<double> elapsed_seconds;
+
 void ImageLoader(HWND _hwnd, std::wstring imageName, int imageFileNameIndex)
 {
 	HBITMAP loadedImage = (HBITMAP)LoadImageW(NULL, imageName.c_str(), IMAGE_BITMAP, sizeOfImage, sizeOfImage, LR_LOADFROMFILE);
+	vectorLock.lock();
 	g_vecLoadedImages.push_back(loadedImage);
+	vectorLock.unlock();
 	HDC hdc = GetDC(_hwnd);
 	HBRUSH brush = CreatePatternBrush(loadedImage);
 	RECT rect;
 	SetRect(&rect, sizeOfImage * imageFileNameIndex, 0, sizeOfImage * imageFileNameIndex + sizeOfImage, sizeOfImage);
 	FillRect(hdc, &rect, brush);
 }
+
 
 LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lparam)
 {
@@ -180,10 +188,11 @@ LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lpa
 	break;
 	case WM_PAINT:
 	{
-
 		_hWindowDC = BeginPaint(_hwnd, &ps);
-		//Do all our painting here
-
+		RECT rc;
+		GetClientRect(_hwnd, &rc);
+		std::string elapsedString = "This took " + to_string(elapsed_seconds.count()) + " seconds.";
+		DrawTextA(_hWindowDC, elapsedString.c_str(), elapsedString.length(), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 		EndPaint(_hwnd, &ps);
 		return (0);
 	}
@@ -199,6 +208,7 @@ LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lpa
 			if (ChooseImageFilesToLoad(_hwnd))
 			{
 				std::vector<std::thread> threadVec;
+				auto startTime = std::chrono::steady_clock::now();
 				for (int imageFileNameIndex = 0; imageFileNameIndex < g_vecImageFileNames.size(); ++imageFileNameIndex)
 				{
 					std::wstring imageFileName = g_vecImageFileNames[imageFileNameIndex];
@@ -208,6 +218,9 @@ LRESULT CALLBACK WindowProc(HWND _hwnd, UINT _uiMsg, WPARAM _wparam, LPARAM _lpa
 				{
 					threadVec[threadIndex].join();
 				}
+				auto endTime = std::chrono::steady_clock::now();
+				elapsed_seconds = endTime - startTime;
+				InvalidateRect(_hwnd, NULL, false);
 			}
 			else
 			{
